@@ -1,0 +1,32 @@
+{
+  "name": "ce-objectstorage-to-sql",
+  "version": "1.0.0",
+  "description": "",
+  "main": "job.mjs",
+  "scripts": {
+    "start": "node .",
+    "local": "node ./src/job.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reggeenr/ce-objectstorage-to-sql.git"
+  },
+  "keywords": [
+    "code-engine",
+    "cos",
+    "cloud-object-storage",
+    "csv"
+  ],
+  "author": "reggeenr@de.ibm.com",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/reggeenr/ce-objectstorage-to-sql/issues"
+  },
+  "homepage": "https://github.com/reggeenr/ce-objectstorage-to-sql#readme",
+  "dependencies": {
+    "csv-parser": "^3.0.0",
+    "ibm-cos-sdk": "^1.11.0",
+    "pg": "^8.7.3"
+  }
+}
