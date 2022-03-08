@@ -5,6 +5,10 @@ import ibm from 'ibm-cos-sdk';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
+// library to access PostgreSQL
+import pg from 'pg';
+import pgConnectionString from 'pg-connection-string';
+
 console.info('Starting CSV to SQL conversion ...');
 
 console.log(`CE_SERVICES: '${JSON.stringify(process.env.CE_SERVICES)}'`);
@@ -17,6 +21,7 @@ const run = async () => {
     return process.exit(1);
   }
   const eventData = JSON.parse(process.env.CE_DATA);
+  console.log(`eventData: '${JSON.stringify(eventData)}'`);
 
   //
   // make sure that the event relates to a COS write operation
@@ -26,7 +31,7 @@ const run = async () => {
   }
   if (eventData.notification.content_type !== 'text/csv') {
     console.log(
-      `< ABORT - COS update did happen on file '${eventData.ke}' which is of type '${eventData.notification.content_type}' (expected type 'text/csv')`
+      `< ABORT - COS update did happen on file '${eventData.key}' which is of type '${eventData.notification.content_type}' (expected type 'text/csv')`
     );
     return process.exit(1);
   }
@@ -47,7 +52,7 @@ const run = async () => {
   //
   // init the COS client
   // see: https://github.com/IBM/ibm-cos-sdk-js
-  const endpoint = 'https://s3.us-east.cloud-object-storage.appdomain.cloud';
+  const endpoint = 'https://s3.ca-tor.cloud-object-storage.appdomain.cloud';
   const serviceInstanceId = ceServices['cloud-object-storage'][0].credentials.resource_instance_id;
   console.log(`Connecting to COS instance '${serviceInstanceId}' via endpoint ${endpoint} ...`);
   const cos = new ibm.S3({
@@ -63,16 +68,37 @@ const run = async () => {
 
   //
   // convert CSV to a object structure
-  const data = await convertCsvToDataStruct(fileContent);
+  console.log(`Converting CSV data to a data struct ...`);
+  const users = await convertCsvToDataStruct(fileContent);
+  console.log(`users: ${JSON.stringify(users)}`);
 
   //
   // Connect to PostgreSQL
   // https://node-postgres.com/
+  console.log(`Establishing connection to PostgreSQL database ...`);
+  const pgCaCert = Buffer.from(process.env.POSTGRE_CACERT_BASE64, 'base64');
+  const pgConnectionString = process.env.POSTGRE_URI;
+  const pgClient = await connectDb(pgConnectionString, pgCaCert);
 
-  // TODO do something meaningful with the data
+  // Do something meaningful with the data
   // https://github.com/IBM-Cloud/compose-postgresql-helloworld-nodejs/blob/master/server.js
+  console.log(`Writing converted CSV data to the PostgreSQL database ...`);
+  const insertOperations = [];
+  users.forEach((userToAdd) => {
+    insertOperations.push(addUser(pgClient, userToAdd.Firstname, userToAdd.Lastname));
+  });
 
-  console.info('COMPLETED');
+  // Wait for all SQL insert operations to finish
+  console.log(`Waiting for all SQL INSERT operations to finish ...`);
+  Promise.all(insertOperations)
+    .then((results) => {
+      results.forEach((result, idx) => console.log(`Added ${JSON.stringify(users[idx])} -> ${JSON.stringify(result)}`));
+      console.info('COMPLETED');
+    })
+    .catch((err) => {
+      console.error('Failed to add users to the database', err);
+      console.info('FAILED');
+    });
 };
 run();
 
@@ -116,5 +142,54 @@ function convertCsvToDataStruct(csvContent) {
     // push the CSV file content to the stream
     readableStream.push(csvContent);
     readableStream.push(null); // indicates end-of-file
+  });
+}
+
+function connectDb(connectionString, caCert) {
+  return new Promise((resolve, reject) => {
+    const postgreConfig = pgConnectionString.parse(connectionString);
+
+    // Add some ssl
+    postgreConfig.ssl = {
+      ca: caCert,
+    };
+
+    // set up a new client using our config details
+    let client = new pg.Client(postgreConfig);
+
+    client.connect((err) => {
+      if (err) {
+        console.error(`Failed to connect to postgreSQL host '${postgreConfig.host}'`, err);
+        return reject(err);
+      }
+
+      client.query(
+        'CREATE TABLE IF NOT EXISTS users (firstname varchar(256) NOT NULL, lastname varchar(256) NOT NULL)',
+        (err, result) => {
+          if (err) {
+            console.log(`Failed to create PostgreSQL table 'users'`, err);
+            return reject(err);
+          }
+          console.log(
+            `Established PostgreSQL client connection to '${postgreConfig.host}' - user table init: ${JSON.stringify(
+              result
+            )}`
+          );
+          return resolve(client);
+        }
+      );
+    });
+  });
+}
+
+function addUser(client, firstName, lastName) {
+  return new Promise(function (resolve, reject) {
+    const queryText = 'INSERT INTO users(firstname,lastname) VALUES($1, $2)';
+    client.query(queryText, [firstName, lastName], function (error, result) {
+      if (error) {
+        return reject(error);
+      }
+      return resolve(result);
+    });
   });
 }
