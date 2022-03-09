@@ -1,19 +1,25 @@
 # IBM Cloud Code Engine - Integrate Cloud Object Storage and PostgreSQL through a job and an event subscription
 
-This sample demonstrates how to read CSV files hosted on a Cloud Object Storage and save their contents line by line into relational PostgreSQL database.
+This sample demonstrates how to read CSV files hosted on a IBM Cloud Object Storage and save their contents line by line into relational PostgreSQL database.
 
 ## Prerequisites
 
-Install `jq`. On MacOS, you'll need to do a `brew install jq`.
-
-Make sure the following IBM Cloud Plugins are installed
+Make sure the following [IBM Cloud CLI](https://cloud.ibm.com/docs/cli/reference/ibmcloud?topic=cloud-cli-getting-started) and the following list of plugins are installed
 - `ibmcloud plugin install code-engine`
 - `ibmcloud plugin install cloud-object-storage`
+
+Install `jq`. On MacOS, you can use following [brew formulae](https://formulae.brew.sh/formula/jq) to do a `brew install jq`.
 ## CLI Setup
+
+Login to IBM Cloud via the CLI
+```
+ibmcloud login 
+```
 
 Target the `ca-tor` region:
 ```
-ibmcloud -r ca-tor
+export REGION=ca-tor
+ibmcloud -r $REGION
 ```
 
 Create the project:
@@ -39,7 +45,7 @@ Create the COS instance:
 ```
 ibmcloud resource service-instance-create csv-to-sql-cos \
     cloud-object-storage \ 
-    lite \
+    standard \
     global
 ```
 
@@ -61,7 +67,9 @@ Create a COS bucket:
 ibmcloud cos config crn --crn $COS_ID --force
 ibmcloud cos config auth --method IAM
 export BUCKET=$CE_ID-csv-to-sql
-ibmcloud cos bucket-create --bucket $BUCKET
+ibmcloud cos bucket-create \
+    --bucket $BUCKET
+    --region $REGION
 ```
 
 Update the job by adding a binding to the COS instance:
