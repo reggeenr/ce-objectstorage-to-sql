@@ -43,10 +43,7 @@ ibmcloud code-engine job create \
 
 Create the COS instance:
 ```
-ibmcloud resource service-instance-create csv-to-sql-cos \
-    cloud-object-storage \ 
-    standard \
-    global
+ibmcloud resource service-instance-create csv-to-sql-cos cloud-object-storage standard global
 ```
 
 Store the COS CRN:
@@ -66,10 +63,11 @@ Create a COS bucket:
 ```
 ibmcloud cos config crn --crn $COS_ID --force
 ibmcloud cos config auth --method IAM
-export BUCKET=$CE_ID-csv-to-sql
+ibmcloud cos config region --region $REGION
+ibmcloud cos config endpoint-url --url s3.$REGION.cloud-object-storage.appdomain.cloud
+export BUCKET=$CE_ID-csv-to-sql-2
 ibmcloud cos bucket-create \
     --bucket $BUCKET
-    --region $REGION
 ```
 
 Update the job by adding a binding to the COS instance:
@@ -90,9 +88,8 @@ ibmcloud ce sub cos create \
 
 Create a PostgreSQL service instance:
 ```
-ibmcloud resource service-instance-create csv-to-sql-postgresql databases-for-postgresql \
-  standard us-south \ 
-  -p \ '{
+ibmcloud resource service-instance-create csv-to-sql-postgresql databases-for-postgresql standard $REGION -p \
+ '{
   "members_cpu_allocation_count": "0 cores",
   "members_disk_allocation_mb": "10240MB",
   "members_members_allocation_count": 2,
